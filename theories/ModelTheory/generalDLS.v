@@ -663,22 +663,50 @@ End ModelTheory.
 Definition injective {X Y :Type} (f: X -> Y) :=
   forall (x x' : X), f x = f x' -> x = x'.
 
-Record lessthanT: Type := {
-  ltT:> Type -> Type -> Prop;
+Record lessthanT (ltT: Type -> Type -> Prop): Prop := {
   ltT_refl: Reflexive ltT;
   ltT_trans: Transitive ltT;
-  ltT_dsum:
-    forall J, ltT J (term + form) ->
-    forall (X Y: J -> Type), (forall j, ltT (X j) (Y j)) -> ltT (sigT X) (sigT Y);
-  ltT_ex_sig:
-    forall J, ltT J (term + form) ->
-    forall X, forall (A: J -> set X), ltT {x | exists j, A j x} (sigT (fun j => {x | A j x}));
   ltT_prod: forall X X' Y Y', ltT X Y -> ltT X' Y' -> ltT (X * X')%type (Y * Y')%type;
   ltT_list: forall X Y, ltT X Y -> ltT (list X) (list Y);
   ltT_inj: forall X Y, (exists f: X -> Y, injective f) -> ltT X Y;
 }.
 
-Record infT (ltT: lessthanT): Type := {
+Definition smaInj (X Y: Type) := exists f: X -> Y, injective f.
+
+Lemma ltTsmaInj: lessthanT smaInj.
+Proof.
+  apply Build_lessthanT.
+  + intros X. exists id. intros x x'. apply id.
+  + intros X Y Z [f hf] [g hg]. exists (f >> g). firstorder.
+  + intros X X' Y Y' [f hf] [f' hf'].
+    exists (fun x_0 => match x_0 with | pair x x' => pair (f x) (f' x') end).
+    intros [x1 x1'] [x2 x2'] eq12. injection eq12 as H H'. rewrite (hf x1 x2), (hf' x1' x2'). reflexivity. 
+    * apply H'.
+    * apply H.
+  + intros X Y [f h].
+    exists (List.map f).
+    intros l. induction l as [|hl tl ih].
+    * intros l eqnil.
+      symmetry.
+      apply symmetry in eqnil.
+      apply (map_eq_nil f _ eqnil).
+    * intros [|hl' tl']. intros abs. inversion abs.
+      intros H. simpl in H. injection H. intros eqt eqh.
+      f_equal. apply (h _ _ eqh). apply ih, eqt.
+  + intros X Y. apply id.
+Qed.
+
+Record cardorderT (coT: Type -> Type -> Prop) : Prop := {
+  co_ltT: lessthanT coT;
+  co_dsum:
+    forall J, coT J (term  + form)%type ->
+    forall (X Y: J -> Type), (forall j, coT (X j) (Y j)) -> coT (sigT X) (sigT Y);
+  co_ex_sig:
+    forall J, coT J (term + form)%type ->
+  forall X, forall (A: J -> set X), coT {x | exists j, A j x} (sigT (fun j => {x | A j x}));
+}.
+
+Record infT (ltT: Type -> Type -> Prop): Type := {
   infty:> Type -> Prop;
   infty_nat: infty nat;
   infty_up_ltT: forall X Y, infty X -> ltT X Y -> infty Y;
@@ -687,10 +715,14 @@ Record infT (ltT: lessthanT): Type := {
   infty_list: forall X, infty X -> ltT (list X) X;
 }.
 
-Context {smaller: lessthanT}.
+Context {smaller: Type -> Type -> Prop}.
+Notation "X ≤ Y" := (smaller X Y) (at level 80) : type_scope.
+
+Section FixCardOrder.
+
+Context {smaller_co: cardorderT smaller}.
 Context {seqinf: infT smaller}.
 
-Notation "X ≤ Y" := (smaller X Y) (at level 80) : type_scope.
 
 Definition smallersi (X Y: Type) := 
 forall W, seqinf W -> Y ≤ W -> X ≤ W.
@@ -701,12 +733,12 @@ Section Size_lemmas.
 
   #[export] Instance smaller_rfl: Reflexive smaller.
   Proof.
-    apply ltT_refl.
+    apply ltT_refl, co_ltT, smaller_co.
   Qed.
 
   #[export] Instance smaller_trans: Transitive smaller.
   Proof.
-    apply ltT_trans.
+    apply ltT_trans, co_ltT, smaller_co.
   Qed.
 
   Lemma smaller_PO: Preorder Type smaller.
@@ -744,7 +776,7 @@ Section Size_lemmas.
   Lemma smaller_of_inj:
   forall X Y, (exists f: X -> Y, injective f) -> X ≤ Y.
   Proof.
-    apply ltT_inj.
+    apply ltT_inj, co_ltT, smaller_co.
   Qed.
   
   Lemma nat_smaller_term_form:
@@ -774,14 +806,14 @@ Section Size_lemmas.
   Fact smaller_prod_incr:
   forall X X' Y Y', X ≤ Y -> X' ≤ Y' -> (X * X')%type ≤ (Y * Y')%type.
   Proof.
-    apply ltT_prod.
+    apply ltT_prod, co_ltT, smaller_co.
   Qed.
 
   Fact smaller_dsum_incr:
   forall J, J ≤ (term + form)%type ->
   forall (X Y: J -> Type), (forall j, (X j) ≤ (Y j)) -> sigT X ≤ sigT Y.
   Proof.
-    apply ltT_dsum.
+    apply co_dsum, smaller_co.
   Qed.
 
   Fact smaller_dsum_nat_incr:
@@ -840,14 +872,14 @@ Section Size_lemmas.
   forall J, J ≤ (term + form)%type -> forall X (A: J -> set X),
   {x | exists j, A j x} ≤ (sigT (fun j => {x | A j x})).
   Proof.
-    apply ltT_ex_sig.
+    apply co_ex_sig, smaller_co.
   Qed.
 
   Fact ex_smaller_sigT_nat:
   forall X,
   forall (A: nat -> set X), {x | exists n, A n x} ≤ (sigT (fun n => {x | A n x})).
   Proof.
-    apply ltT_ex_sig.
+    apply ex_smaller_sigT.
     apply nat_smaller_term_form.
   Qed.
 
@@ -925,7 +957,7 @@ Section Size_lemmas.
   Fact list_incr:
   forall X Y, X ≤ Y -> (list X) ≤ (list Y).
   Proof.
-    apply ltT_list.
+    apply ltT_list, co_ltT, smaller_co.
   Qed.
   
   Fact seqinf_up:
@@ -977,7 +1009,7 @@ Section Size_lemmas.
   Proof.
     intros X W hsiW hXW.
     transitivity (list W).
-    + apply (ltT_list hXW).
+    + apply (@ltT_list smaller (co_ltT smaller_co) _ _ hXW).
     + apply (infty_list hsiW).
   Qed.
   
@@ -1808,6 +1840,8 @@ End Size_lemmas.
 
 End Sizes.
 
+End FixCardOrder.
+
 Section DLS.
 
 Definition DLS'_on := 
@@ -1815,15 +1849,15 @@ Definition DLS'_on :=
   (N ≤ (term + form)%type) /\ N ⪳ M.
 
 Theorem DLS'_of_TV:
-inhabited (TV_all ) -> inhabited (TV_ex ) -> inhabited M -> DLS'_on.
+cardorderT smaller -> infT smaller -> inhabited (TV_all ) -> inhabited (TV_ex ) -> inhabited M -> DLS'_on.
 Proof.
-  intros [Fall] [Fex] [m0].
+  intros smaller_co seqinf [Fall] [Fex] [m0].
   pose (A0 := fun m => m = m0).
   assert (hm := eq_refl m0 : A0 m0).
   assert (hA0 := inhabits (Build_of_set hm)).
   pose (N := @model_of_inhabited_set Fall Fex _ hA0).
   exists N. split.
-  + apply Step_singl_smaller_term_form.
+  + apply (@Step_singl_smaller_term_form smaller_co seqinf).
   + apply elemsubm_of_nefp_step.
 Qed.
 
