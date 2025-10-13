@@ -5,6 +5,7 @@ Require Import PeanoNat.
 Require Import Sets.Relations_1.
 Require Import Relation_Definitions Morphisms.
 Require Import FOL.ModelTheory.Core.
+Require Import FOL.ModelTheory.LogicalPrinciples.
 Require Import FOL.ModelTheory.ConstructiveLS.
 
 (* Set Default Goal Selector "!". *)
@@ -696,14 +697,13 @@ Proof.
   + intros X Y. apply id.
 Qed.
 
-Record cardorderT (coT: Type -> Type -> Prop) : Prop := {
-  co_ltT: lessthanT coT;
+Record cardorderT (kappa: Type) (coT: Type -> Type -> Prop) : Prop := {
   co_dsum:
-    forall J, coT J (term  + form)%type ->
+    forall J, coT J kappa ->
     forall (X Y: J -> Type), (forall j, coT (X j) (Y j)) -> coT (sigT X) (sigT Y);
   co_ex_sig:
-    forall J, coT J (term + form)%type ->
-  forall X, forall (A: J -> set X), coT {x | exists j, A j x} (sigT (fun j => {x | A j x}));
+    forall J, coT J kappa ->
+    forall X, forall (A: J -> set X), coT {x | exists j, A j x} (sigT (fun j => {x | A j x}));
 }.
 
 Record infT (ltT: Type -> Type -> Prop): Type := {
@@ -715,12 +715,12 @@ Record infT (ltT: Type -> Type -> Prop): Type := {
   infty_list: forall X, infty X -> ltT (list X) X;
 }.
 
-Context {smaller: Type -> Type -> Prop}.
+Context {smaller: Type -> Type -> Prop} {smaller_lt: lessthanT smaller}.
 Notation "X ≤ Y" := (smaller X Y) (at level 80) : type_scope.
 
 Section FixCardOrder.
 
-Context {smaller_co: cardorderT smaller}.
+Context {smaller_co: cardorderT (term  + form) smaller}.
 Context {seqinf: infT smaller}.
 
 
@@ -733,12 +733,12 @@ Section Size_lemmas.
 
   #[export] Instance smaller_rfl: Reflexive smaller.
   Proof.
-    apply ltT_refl, co_ltT, smaller_co.
+    apply ltT_refl, smaller_lt.
   Qed.
 
   #[export] Instance smaller_trans: Transitive smaller.
   Proof.
-    apply ltT_trans, co_ltT, smaller_co.
+    apply ltT_trans, smaller_lt.
   Qed.
 
   Lemma smaller_PO: Preorder Type smaller.
@@ -776,7 +776,7 @@ Section Size_lemmas.
   Lemma smaller_of_inj:
   forall X Y, (exists f: X -> Y, injective f) -> X ≤ Y.
   Proof.
-    apply ltT_inj, co_ltT, smaller_co.
+    apply ltT_inj, smaller_lt.
   Qed.
   
   Lemma nat_smaller_term_form:
@@ -806,7 +806,7 @@ Section Size_lemmas.
   Fact smaller_prod_incr:
   forall X X' Y Y', X ≤ Y -> X' ≤ Y' -> (X * X')%type ≤ (Y * Y')%type.
   Proof.
-    apply ltT_prod, co_ltT, smaller_co.
+    apply ltT_prod, smaller_lt.
   Qed.
 
   Fact smaller_dsum_incr:
@@ -957,7 +957,7 @@ Section Size_lemmas.
   Fact list_incr:
   forall X Y, X ≤ Y -> (list X) ≤ (list Y).
   Proof.
-    apply ltT_list, co_ltT, smaller_co.
+    apply ltT_list, smaller_lt.
   Qed.
   
   Fact seqinf_up:
@@ -1009,7 +1009,7 @@ Section Size_lemmas.
   Proof.
     intros X W hsiW hXW.
     transitivity (list W).
-    + apply (@ltT_list smaller (co_ltT smaller_co) _ _ hXW).
+    + apply (@ltT_list smaller smaller_lt _ _ hXW).
     + apply (infty_list hsiW).
   Qed.
   
@@ -1849,7 +1849,7 @@ Definition DLS'_on :=
   (N ≤ (term + form)%type) /\ N ⪳ M.
 
 Theorem DLS'_of_TV:
-cardorderT smaller -> infT smaller -> inhabited (TV_all ) -> inhabited (TV_ex ) -> inhabited M -> DLS'_on.
+cardorderT (term + form) smaller -> infT smaller -> inhabited (TV_all) -> inhabited (TV_ex) -> inhabited M -> DLS'_on.
 Proof.
   intros smaller_co seqinf [Fall] [Fex] [m0].
   pose (A0 := fun m => m = m0).
@@ -1861,52 +1861,14 @@ Proof.
   + apply elemsubm_of_nefp_step.
 Qed.
 
-(* Fact exists_isTVex:
-exists F, isTarskiVaught_ex F.
-Proof.
-  destruct (@ac (env M * form)%type M 
-    (fun p m0 => match p with 
-      | pair rho phi => sat (interp' M) rho (∃ phi) -> sat (interp' M) (m0 .: rho) phi
-    end)) as [F hF].
-  {
-    intros [rho phi].
-    destruct (lem (@sat _ _ _ (interp' M) _ rho (∃ phi))) as [Hor|Hor].
-    + destruct Hor as [m0 H].
-      exists m0. intros _. apply H.
-    + exists (rho 0). intros H. exfalso. apply (Hor H).
-  }
-  exists (fun rho phi => F (rho, phi)).
-  intros rho phi. apply (hF (rho, phi)).
-Qed.
-
-Fact inhab_TVex:
-inhabited TV_ex.
-Admitted.
-
-(* It is not entirely symmetric, here, we need the fact that 
-¬∀phi ↔ ∃ ¬phi (with classical arguments)*)
-Fact TVall_of_LEM_and_AC:
-inhabited (@TV_all).
-Proof.
-  pose (R := fun (p: ((env M) * form)%type) (m: M) => match p with 
-    | pair rho phi =>
-      (@sat _ _ _ (interp' M) _ (m .: rho) phi -> @sat _ _ _ (interp' M) _ rho (∀ phi))
-    end).
-  assert (forall p, exists m, R p m).
-  {
-    intros [rho phi]. 
-    destruct (lem (@sat _ _ _ (interp' M) _ rho (∀ phi))) as [Hor|Hor].
-    + exists (rho 0). intros _. apply Hor.
-    + simpl in Hor. rewrite (not_forall_is_exists_not lem) in Hor.
-      destruct Hor as [m0 Hm0]. exists m0.
-      intros H. exfalso. apply (Hm0 H).
-  }
-  assert (H1 :=(@ac _ _ _ H)).
-  destruct H1 as [F' hF'].
-  pose (F := fun rho phi => F' (rho, phi)).
-Admitted. *)
-
 End DLS.
+
+Check (existT (@id Type) nat 0 : (@sigT Type id)).
+Check (@sigT Type id).
+
+Section RevDLS.
+  (**)
+End RevDLS.
 
 End fix_variables.
 
