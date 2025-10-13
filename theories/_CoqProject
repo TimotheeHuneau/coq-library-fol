@@ -100,3 +100,4 @@ ModelTheory/HenkinEnv.v
 ModelTheory/ClassicalDC.v
 ModelTheory/ReverseLS.v
 ModelTheory/AnalysisLS.v
+ModelTheory/gDLS_defs.v
