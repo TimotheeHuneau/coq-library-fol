@@ -19,6 +19,7 @@ Record lessthanT (ltT: Type -> Type -> Prop): Prop := {
   ltT_refl: Reflexive ltT;
   ltT_trans: Transitive ltT;
   ltT_prod: forall X X' Y Y', ltT X Y -> ltT X' Y' -> ltT (X * X')%type (Y * Y')%type;
+  ltT_sum: forall X X' Y Y', ltT X Y -> ltT X' Y' -> ltT (X + X')%type (Y + Y')%type;
   ltT_list: forall X Y, ltT X Y -> ltT (list X) (list Y);
   ltT_inj: forall X Y, (exists f: X -> Y, injective f) -> ltT X Y;
 }.
