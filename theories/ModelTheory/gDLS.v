@@ -3,13 +3,12 @@ Require Import List.
 Require Import Eqdep.
 Require Import PeanoNat.
 Require Import Sets.Relations_1.
+Require Import Classes.RelationClasses.
 Require Import Relation_Definitions Morphisms.
 Require Import FOL.ModelTheory.Core.
 Require Import FOL.ModelTheory.LogicalPrinciples.
 Require Import FOL.ModelTheory.ConstructiveLS.
 Require Import FOL.ModelTheory.gDLS_defs.
-
-Print FOL.ModelTheory.gDLS_defs.
 
 Lemma forall_not_is_not_exists:
 forall (A: Type) (P: A -> Prop),
@@ -651,22 +650,6 @@ Section ModelTheory.
 
 End ModelTheory.
 
-Definition injectiveR {X Y: Type} (R: X -> Y -> Prop) :=
-  forall x x' y0, R x y0 /\ R x' y0 -> x = x'.
-
-Definition totalR {X Y: Type} (R: X -> Y -> Prop) :=
-  forall x, exists y, R x y.
-
-Record cardorderT (coT: Type -> Type -> Prop) : Prop := {
-  co_dsum:
-    forall J,
-    forall (X Y: J -> Type),
-    (exists E: forall j: J, X j -> Y j -> Prop, forall j, totalR (E j) /\ injectiveR (E j)) -> coT (sigT X) (sigT Y);
-  co_ex_sig:
-    forall J,
-    forall (A: J -> Prop), coT (exists j, A j) (sig (fun j => A j));
-}.
-
 Record infT (ltT: Type -> Type -> Prop): Type := {
   infty:> Type -> Prop;
   infty_nat: infty nat;
@@ -742,11 +725,6 @@ Proof.
     - intros x. exists (f x). reflexivity.
     - intros x x' y [h h'].
       apply hf. rewrite h, h'. reflexivity.
-Qed.
-
-Lemma coTsmaInjR: cardorderT smaInjR.
-Proof.
-  apply Build_cardorderT.
   + intros J X Y [E hE].
     exists (
       fun dx dy => match dx, dy return Prop with
@@ -770,7 +748,6 @@ Notation "X ≤ Y" := (smaller X Y) (at level 80) : type_scope.
 
 Section FixCardOrder.
 
-Context {smaller_co: cardorderT smaller}.
 Context {seqinf: infT smaller}.
 
 
@@ -781,29 +758,15 @@ Section Sizes.
 
 Section Size_lemmas.
 
-  #[export] Instance smaller_rfl: Reflexive smaller.
-  Proof.
-    apply ltT_refl, smaller_lt.
-  Qed.
-
-  #[export] Instance smaller_trans: Transitive smaller.
-  Proof.
-    apply ltT_trans, smaller_lt.
-  Qed.
-
-  Lemma smaller_PO: Preorder Type smaller.
-  Proof.
-    apply (Definition_of_preorder Type smaller
-      smaller_rfl smaller_trans).
-  Qed.
-
   Lemma smallersi_of_smaller:
   forall X Y, X ≤ Y -> smallersi X Y.
   Proof.
-  intros X Y H W _ h. transitivity Y. apply H. apply h.
+  intros X Y H W _ h.
+  Print Instances Transitive.
+  transitivity Y. apply H. apply h.
   Qed.
 
-  #[export] Instance smallersi_rfl: Reflexive smallersi.
+  #[global] Instance smallersi_rfl: Reflexive smallersi.
   Proof.
     intros X. apply smallersi_of_smaller. reflexivity.
   Qed.
@@ -823,12 +786,6 @@ Section Size_lemmas.
       smallersi_rfl smallersi_trans).
   Qed.
 
-  Lemma smaller_of_inj:
-  forall X Y, (exists f: X -> Y, injective f) -> X ≤ Y.
-  Proof.
-    apply ltT_inj, smaller_lt.
-  Qed.
-  
   Lemma nat_smaller_term_form:
   nat ≤ (term + form)%type.
   Proof.
@@ -853,26 +810,6 @@ Section Size_lemmas.
     intros phi1 phi2 eqphi. injection eqphi. apply id.
   Qed.
 
-  Fact smaller_prod_incr:
-  forall X X' Y Y', X ≤ Y -> X' ≤ Y' -> (X * X')%type ≤ (Y * Y')%type.
-  Proof.
-    apply ltT_prod, smaller_lt.
-  Qed.
-
-  Fact smaller_dsum_incr:
-  forall J,
-  forall (X Y: J -> Type),
-  (exists E: forall j: J, X j -> Y j -> Prop, forall j, totalR (E j) /\ injectiveR (E j)) -> sigT X ≤ sigT Y.
-  Proof.
-    apply co_dsum, smaller_co.
-  Qed.
-
-  Fact smaller_sum_incr:
-  forall X X' Y Y', X ≤ Y -> X' ≤ Y' -> (X + X')%type ≤ (Y + Y')%type.
-  Proof.
-    apply ltT_sum, smaller_lt.
-  Qed.
-  
   Fact ex_smaller_sigT:
   forall J, forall X (A: J -> set X),
   {x | exists j, A j x} ≤ (sigT (fun j => {x | A j x})).
@@ -883,7 +820,7 @@ Section Size_lemmas.
     - apply smaller_of_inj.
       exists (fun ds => match ds with | exist _ x h => existT _ x h end).
       intros [x h] [x' h'] e. injection e as e'. destruct e'. rewrite (pi h h'). reflexivity.
-    - apply (co_dsum smaller_co).
+    - apply (ltT_dsum smaller_lt).
       exists (fun x ej dj => True). intros x. split.
       * intros [j h]. exists (existT _ j h). exact I.
       * intros [j h] [j' h'] [j0 h0] [[] []]. apply pi.
@@ -891,7 +828,8 @@ Section Size_lemmas.
       exists (fun a => match a with
         | existT _ x (existT _ j h) =>  (existT (fun j0 => sig _) j (exist _ x h))
       end).
-      intros [x [j h]] [x' [j' h']] e. inversion e as [e']. destruct e'. destruct H. f_equal. f_equal. apply pi.
+      intros [x [j h]] [x' [j' h']] e. inversion e as [e']. destruct e'. destruct H.
+      f_equal. f_equal. apply pi.
   Qed.
 
   Fact ex_smaller_sigT_nat:
@@ -962,11 +900,7 @@ Section Size_lemmas.
       all: subst x1. all: reflexivity.
   Qed.
 
-  Fact list_incr:
-  forall X Y, X ≤ Y -> (list X) ≤ (list Y).
-  Proof.
-    apply ltT_list, smaller_lt.
-  Qed.
+  
   
   Fact seqinf_up:
   forall X Y, seqinf X -> X ≤ Y -> seqinf Y.
@@ -983,22 +917,7 @@ Section Size_lemmas.
   Qed.
       
 
-  Fact smaller_of_sum_incr_l:
-  forall X Y Z, (X + Y)%type ≤ Z -> X ≤ Z.
-  Proof.
-    intros X Y Z H.
-    transitivity (X +Y)%type.
-    apply smaller_of_inj. exists inl. intros x1 x2 eq. injection eq. apply id.
-    apply H.
-  Qed. 
-
-  Fact smaller_of_sum_incr_r:
-  forall X Y Z, (X + Y)%type ≤ Z -> Y ≤ Z.
-    intros X Y Z H.
-    transitivity (X +Y)%type.
-    apply smaller_of_inj. exists inr. intros x1 x2 eq. injection eq. apply id.
-    apply H.
-  Qed.
+  
 
   Fact prod_of_seqinf:
   forall X, seqinf X -> (X * X)%type ≤ X.
@@ -1056,12 +975,7 @@ Section Size_lemmas.
     + apply (prod_of_seqinf hsiW).
   Qed.
 
-  Fact X_smaller_lX:
-  forall X, X ≤ (list X).
-  Proof.
-    intros X. apply smaller_of_inj.
-    exists (fun x => x :: List.nil). intros x1 x2 eq. injection eq. apply id.
-  Qed.
+  
 
   Lemma seqinf_nat: seqinf nat.
   Proof.
@@ -1107,17 +1021,7 @@ Section Size_lemmas.
   Qed.
 
   
-  Fact sum_smaller_list:
-  forall X, smaller (X + X)%type (list X).
-  Proof.
-    intros X.
-    apply smaller_of_inj.
-    exists (fun x => match x with 
-    | inl xl => xl :: List.nil 
-    | inr xr => xr :: xr :: List.nil
-    end).
-    intros [xl1|xr1] [xl2|xr2] eq. all: inversion eq. all: reflexivity.
-  Qed.
+  
 
   Fact sum_smallersi:
   forall X, smallersi (X + X) X.
@@ -1148,46 +1052,6 @@ Section Size_lemmas.
     + apply sum_smallersi.
   Qed.
   
-  Fact smaller_sum_assoc:
-  forall A B C, (A + B + C)%type ≤ (A + (B + C))%type /\ (A + (B + C))%type ≤ (A + B + C)%type.
-  Proof.
-    intros A B C. split. all: apply smaller_of_inj.
-    + exists (fun x => match x with
-      | inl (inl a) => inl a 
-      | inl (inr b) => inr (inl b)
-      | inr c => inr (inr c)
-      end).
-      intros [[a1|b1]|c1] [[a2|b2]|c2] eq.
-      all: try discriminate eq.
-      all: inversion eq.
-      all: reflexivity. 
-    + exists (fun x => match x with 
-      | inl a => inl (inl a)
-      | inr (inl b) => inl (inr b)
-      | inr (inr c) => inr c 
-      end).
-      intros [a1|[b1|c1]] [a2|[b2|c2]] eq.
-      all: try discriminate eq.
-      all: inversion eq.
-      all: reflexivity.
-  Qed.
-
-  Fact smaller_sum_comm:
-  forall A B, (A + B)%type ≤ (B + A)%type.
-  Proof.
-    intros A B. apply smaller_of_inj.
-    exists (fun x => match x with 
-      | inl a => inr a 
-      |inr b => inl b 
-      end).
-    intros [a1|b1] [a2|b2 ] eq. 
-    all: try discriminate eq. 
-    all: inversion eq. 
-    all: reflexivity.
-  Qed.
-
-End Size_lemmas.
-
   Fact seqinf_term_form:
   seqinf (term + form)%type.
   Proof.
@@ -1198,6 +1062,10 @@ End Size_lemmas.
       intros n1 n2 eqe. injection eqe. apply id.
   Qed.
 
+
+End Size_lemmas.
+
+  
   (* The singleton set containing a given element [m0] *)
   Definition singl (m0: M): set M := fun m => m = m0.
 
@@ -1571,18 +1439,34 @@ End Size_lemmas.
       - reflexivity.
     + apply prod_smallersi.
   Qed. *)
-  
-Search step.
 
-    Lemma stepTerm_injtot_term_vec (Fall: TV_all) (Fex: TV_ex):
+  Lemma stepTerm_siR_term_vec (Fall: TV_all) (Fex: TV_ex):
     forall A, of_set A ->
-    exists R:
-      (of_set (stepTerm A) ->
-      {t: term & vec (of_set A) (term_max_var t)} ->
-      Prop),
-    totalR R /\ injectiveR R.
-    Admitted.
+    smaInjR
+      (of_set (stepTerm A))
+      {t: term & (unit * vec (of_set A) (term_max_var t))%type}.
+  Admitted.
 
+  Lemma stepForm_siR_form_vec (Fall: TV_all) (Fex: TV_ex):
+    forall A, of_set A ->
+    smaInjR
+      (of_set (stepForm Fall Fex A))
+      {phi: form & (bool * vec (of_set A) (form_max_var phi))%type}.
+  Admitted.
+
+  Definition alpha := fun x: term + form => match x with | inl _ => unit | inr _ => bool end.
+  Definition mu := fun x =>  match x with | inl t => term_max_var t | inr phi => form_max_var phi end.
+
+  Lemma step_siR_term_form_vec (Fall: TV_all) (Fex: TV_ex):
+    forall A, of_set A ->
+    smaInjR 
+      (of_set (step Fall Fex A))
+      {x: term + form & (alpha x * vec (of_set A) (mu x))%type}.
+  Proof.
+    intros A a0.
+    unshelve eexists.
+    + intros [m hm] [[t|phi] hx]. unfold step, union in hm.
+  Admitted.
 
 
   Lemma Step_smaller (Fall: TV_all) (Fex: TV_ex):
@@ -1593,7 +1477,6 @@ Search step.
     transitivity {n: nat & of_set (iteration n (step Fall Fex) A)}.
     apply Union_smaller_sigT.
     transitivity {n: nat & (term + form)%type}.
-    apply (co_dsum smaller_co).
   Admitted.
   
   Lemma Step_singl_smaller_term_form (Fall: TV_all) (Fex: TV_ex):
@@ -1812,15 +1695,15 @@ End FixCardOrder.
 Section DLS.
 
 Theorem DLS'_of_TV:
-cardorderT smaller -> infT smaller -> inhabited (TV_all) -> inhabited (TV_ex) -> inhabited M -> @gDLS_on smaller _ _ M.
+infT smaller -> inhabited (TV_all) -> inhabited (TV_ex) -> inhabited M -> gDLS_on _ _ M smaller.
 Proof.
-  intros smaller_co seqinf [Fall] [Fex] [m0].
+  intros seqinf [Fall] [Fex] [m0].
   pose (A0 := fun m => m = m0).
   assert (hm := eq_refl m0 : A0 m0).
   assert (hA0 := inhabits (Build_of_set hm)).
   pose (N := @model_of_inhabited_set Fall Fex _ hA0).
   exists N. split.
-  + apply (@Step_singl_smaller_term_form smaller_co seqinf).
+  + apply (@Step_singl_smaller_term_form seqinf).
   + apply elemsubm_of_nefp_step.
 Qed.
 
