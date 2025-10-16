@@ -23,7 +23,7 @@ Definition injectiveR {X Y: Type} (R: X -> Y -> Prop) :=
 Definition totalR {X Y: Type} (R: X -> Y -> Prop) :=
   forall x, exists y, R x y.
 
-Record lessthanT (ltT: Type -> Type -> Prop): Prop := {
+Class lessthanT (ltT: Type -> Type -> Prop): Prop := {
   ltT_refl: Reflexive ltT;
   ltT_trans: Transitive ltT;
   ltT_prod: forall X X' Y Y', ltT X Y -> ltT X' Y' -> ltT (X * X')%type (Y * Y')%type;
@@ -42,15 +42,16 @@ Section lt_lemmas.
 
   Context {smaller: Type -> Type -> Prop} {smaller_lt: lessthanT smaller}.
   Notation "X ≤ Y" := (smaller X Y) (at level 80) : type_scope.
+  Existing Instance smaller_lt.
 
   #[global] Instance smaller_rfl: Reflexive smaller.
   Proof.
-    apply ltT_refl, smaller_lt.
+    apply ltT_refl.
   Qed.
 
   #[global] Instance smaller_trans: Transitive smaller.
   Proof.
-    apply ltT_trans, smaller_lt.
+    apply ltT_trans.
   Qed.
 
   #[global] Instance smaller_PO: PreOrder smaller.
@@ -61,13 +62,13 @@ Section lt_lemmas.
   Lemma smaller_of_inj:
   forall X Y, (exists f: X -> Y, injective f) -> X ≤ Y.
   Proof.
-    apply ltT_inj, smaller_lt.
+    apply ltT_inj.
   Qed.
 
   Fact smaller_prod_incr:
   forall X X' Y Y', X ≤ Y -> X' ≤ Y' -> (X * X')%type ≤ (Y * Y')%type.
   Proof.
-    apply ltT_prod, smaller_lt.
+    apply ltT_prod.
   Qed.
 
   Fact smaller_dsum_incr:
@@ -75,19 +76,19 @@ Section lt_lemmas.
   forall (X Y: J -> Type),
   (exists E: forall j: J, X j -> Y j -> Prop, forall j, totalR (E j) /\ injectiveR (E j)) -> sigT X ≤ sigT Y.
   Proof.
-    apply ltT_dsum, smaller_lt.
+    apply ltT_dsum.
   Qed.
 
   Fact smaller_sum_incr:
   forall X X' Y Y', X ≤ Y -> X' ≤ Y' -> (X + X')%type ≤ (Y + Y')%type.
   Proof.
-    apply ltT_sum, smaller_lt.
+    apply ltT_sum.
   Qed.
   
   Fact list_incr:
   forall X Y, X ≤ Y -> (list X) ≤ (list Y).
   Proof.
-    apply ltT_list, smaller_lt.
+    apply ltT_list.
   Qed.
 
   Fact smaller_of_sum_incr_l:
@@ -163,7 +164,6 @@ Section lt_lemmas.
     all: inversion eq. 
     all: reflexivity.
   Qed.
-
 
 End lt_lemmas.
 

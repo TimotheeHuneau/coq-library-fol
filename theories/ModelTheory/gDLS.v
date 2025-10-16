@@ -762,7 +762,6 @@ Section Size_lemmas.
   forall X Y, X ≤ Y -> smallersi X Y.
   Proof.
   intros X Y H W _ h.
-  Print Instances Transitive.
   transitivity Y. apply H. apply h.
   Qed.
 
@@ -820,7 +819,7 @@ Section Size_lemmas.
     - apply smaller_of_inj.
       exists (fun ds => match ds with | exist _ x h => existT _ x h end).
       intros [x h] [x' h'] e. injection e as e'. destruct e'. rewrite (pi h h'). reflexivity.
-    - apply (ltT_dsum smaller_lt).
+    - apply (ltT_dsum).
       exists (fun x ej dj => True). intros x. split.
       * intros [j h]. exists (existT _ j h). exact I.
       * intros [j h] [j' h'] [j0 h0] [[] []]. apply pi.
@@ -900,8 +899,6 @@ Section Size_lemmas.
       all: subst x1. all: reflexivity.
   Qed.
 
-  
-  
   Fact seqinf_up:
   forall X Y, seqinf X -> X ≤ Y -> seqinf Y.
   Proof.
@@ -915,9 +912,6 @@ Section Size_lemmas.
     + intros H. apply (H _ hsiY (smaller_rfl Y)).
     + apply smallersi_of_smaller.
   Qed.
-      
-
-  
 
   Fact prod_of_seqinf:
   forall X, seqinf X -> (X * X)%type ≤ X.
