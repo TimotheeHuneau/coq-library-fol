@@ -1434,34 +1434,108 @@ End Size_lemmas.
     + apply prod_smallersi.
   Qed. *)
 
-  Lemma stepTerm_siR_term_vec (Fall: TV_all) (Fex: TV_ex):
-    forall A, of_set A ->
-    smaInjR
-      (of_set (stepTerm A))
-      {t: term & (unit * vec (of_set A) (term_max_var t))%type}.
-  Admitted.
-
-  Lemma stepForm_siR_form_vec (Fall: TV_all) (Fex: TV_ex):
-    forall A, of_set A ->
-    smaInjR
-      (of_set (stepForm Fall Fex A))
-      {phi: form & (bool * vec (of_set A) (form_max_var phi))%type}.
-  Admitted.
-
   Definition alpha := fun x: term + form => match x with | inl _ => unit | inr _ => bool end.
-  Definition mu := fun x =>  match x with | inl t => term_max_var t | inr phi => form_max_var phi end.
+  Definition nux := fun x =>  match x with | inl t => term_max_var t | inr phi => form_max_var phi end.
+
+Lemma coe_enveq: forall A: set M, forall a0 : of_set A,
+forall k,
+forall rho: env M,
+forall H:(forall n, A (rho n)),
+enveq k (fun i => @elem A (vec2env (env2vec k (fun j => Build_of_set (H j))) a0 i)) (fun i => rho i).
+Proof.
+  intros A a0 k. induction k as [|k' hk].
+  all: intros rho H .
+  all: rewrite enveq_enveq'.
+  + apply enveq_0.
+  + apply enveq_S. reflexivity. 
+    assert (h := hk (fun n => rho (S n)) (fun n => H (S n))).
+    rewrite enveq_enveq' in h.
+    apply h.
+Qed.
 
   Lemma step_siR_term_form_vec (Fall: TV_all) (Fex: TV_ex):
     forall A, of_set A ->
     smaInjR 
       (of_set (step Fall Fex A))
-      {x: term + form & (alpha x * vec (of_set A) (mu x))%type}.
+      {x: term + form & (alpha x * vec (of_set A) (nux x))%type}.
   Proof.
     intros A a0.
-    unshelve eexists.
-    + intros [m hm] [[t|phi] hx]. unfold step, union in hm.
-  Admitted.
+    exists (fun m0 dx => match m0, dx with 
+      | @Build_of_set _ m hm, existT _ (inl t) (pair _ v) => m = t ₜ[M] (vec2env v a0 )
+      | @Build_of_set _ m hm, existT _ (inr phi) (pair true v) =>
+        (m = (F_all Fall) (vec2env v a0) phi)
+      | @Build_of_set _ m hm, existT _ (inr phi) (pair false v) =>
+        (m = (F_ex Fex) (vec2env v a0) phi)
+      end). split.
+    - intros [x [[phi [rho [hrho [hphi|hphi]]]]|[t [rho [hrho ht]]]]].
+      * exists (existT
+          _
+          (inr phi)
+          (pair true (env2vec (form_max_var phi) (fun n => Build_of_set (hrho n))))).
+        rewrite hphi.
+        apply (hFEI). symmetry. apply coe_enveq.
+      * exists (existT
+          _
+          (inr phi)
+          (pair false (env2vec (form_max_var phi) (fun n => Build_of_set (hrho n))))).
+        rewrite hphi.
+        apply (hFEI). symmetry. apply coe_enveq.
+      * exists (existT
+          _
+          (inl t)
+          (pair tt (env2vec (term_max_var t) (fun n => Build_of_set (hrho n))))).
+        rewrite ht.
+        apply term_max_var_prop. symmetry. apply coe_enveq.
+    - intros [x hx] [x' hx'] [[t0|phi0] [b v0]] [e e'].
+      2: destruct b.
+      all: destruct e.
+      all: destruct e'.
+      all: rewrite (pi hx hx').
+      all: reflexivity.
+  Qed. 
 
+Definition nuxx := fun x =>  match x with
+  | inl t => term_max_var t
+  | inr (inl phi) | inr (inr phi) => form_max_var phi
+end.
+
+
+  Lemma step_siR_term_form_form_vec (Fall: TV_all) (Fex: TV_ex):
+    forall A, of_set A ->
+    smaInjR 
+      (of_set (step Fall Fex A))
+      {x:(term + (form + form)) & vec (of_set A) (nuxx x)}.
+  Proof.
+    intros A a0.
+    exists (fun m0 px => match m0, px with 
+      | @Build_of_set _ m hm, existT _ (inl t) v => m = t ₜ[M] (vec2env v a0 )
+      | @Build_of_set _ m hm, existT _ (inr (inl phi)) v => (m = (F_all Fall) (vec2env v a0) phi)
+      | @Build_of_set _ m hm, existT _ (inr (inr phi)) v => (m = (F_ex Fex) (vec2env v a0) phi)
+      end). split.
+    - intros [x [[phi [rho [hrho [hx|hx]]]]|[t [rho [hrho hx]]]]].
+      1: exists (existT 
+          _
+          (inr (inl phi))
+          ((env2vec (form_max_var phi) (fun n => Build_of_set (hrho n))))).
+      2: exists (existT
+          _
+          (inr (inr phi))
+          ((env2vec (form_max_var phi) (fun n => Build_of_set (hrho n))))).
+      3: exists (existT
+          _
+          (inl t)
+          ((env2vec (term_max_var t) (fun n => Build_of_set (hrho n))))).
+      all: rewrite hx.
+      1,2: apply hFEI.
+      3: apply term_max_var_prop.
+      all: symmetry.
+      all: apply coe_enveq.
+    - intros [x hx] [x' hx'] [[t0|[phi0|phi0]] v0] [e e'].
+      all: destruct e.
+      all: destruct e'.
+      all: rewrite (pi hx hx').
+      all: reflexivity.
+  Qed.
 
   Lemma Step_smaller (Fall: TV_all) (Fex: TV_ex):
   forall A, of_set A -> of_set A ≤ (term + form)%type ->

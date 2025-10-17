@@ -64,35 +64,33 @@ End BDP.
 
 Section BDP'.
 
-Context {s_f: funcs_signature}.
-Context {s_P:  preds_signature}.
-Context {smaller: Type -> Type -> Prop} {smaller_lt: lessthanT smaller}.
-Notation "X ≤ Y" := (smaller X Y) (at level 80) : type_scope.
+(* Unusual notation *)
+Notation "X ≤ Y" := (exists f: Y -> X, surjective f) (at level 80) : type_scope.
 
 	Definition gBDP'_on (B A: Type):=
 	forall P, exists B', B' ≤ B /\ (exists f: B' -> A, (forall b', P (f b')) -> (forall a, P a)).
 	
-	Lemma BDP_mono:
-	(forall A B: Type, A ≤ B -> (exists f: B -> A, surjective f)) ->
+	Lemma BDP_mono_of_surj:
 	forall B B', B ≤ B' -> (gBDP B -> gBDP B').
 	Proof.
-		intros hsurj B B' Hsize bdp A P.
+		intros B B' [g hg] bdp A P.
 		destruct (bdp A P) as [f hf].
-		destruct (hsurj B B' Hsize) as [g hg].
 		exists (g >> f).
 		intros H. apply hf. intros b.
 		destruct (hg b) as [b' hb'].
 		rewrite <-hb'. apply H.
 	Qed.
 
-
-	Lemma BDP_iff_BDP': forall B A, gBDP_on B A <-> gBDP'_on B A.
+	Lemma BDP'_of_BDP: forall B A, gBDP_on B A <-> gBDP'_on B A.
 	Proof.
-		intros B A. split. 
-		+ intros bdp P.
-			exists B. split. reflexivity.
+		intros B A. split.
+		all: intros bdp P.
+		+ exists B. split. exists id. intros x. exists x. reflexivity.
 			apply (bdp P).
-		+ intros bdp' P.
+		+ destruct (bdp P) as [B' [[g hg] [f hf]]].
+			exists (g >> f).
+			intros H. apply hf. intros b'. destruct (hg b') as [b hb]. rewrite <-hb. apply H.
+	Qed.
 
 End BDP'.
 
