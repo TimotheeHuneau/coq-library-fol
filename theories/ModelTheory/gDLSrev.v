@@ -15,10 +15,7 @@ Section BDP_and_BEP.
 	Context {smaller: Type -> Type -> Prop} {smaller_lt: lessthanT smaller}.
 	Notation "X ≤ Y" := (smaller X Y) (at level 80) : type_scope.
 
-	Definition surjective {A B: Type} (f: A -> B) :=
-		forall b: B, exists a: A, f a  = b.
-
-	Axiom (surj_of_smaller: forall A B: Type, A ≤ B -> (exists f: B -> A, surjective f)).
+	Axiom surj_of_smaller: @SoS smaller.
 
 	Definition xs_P := extend_sigP s_P.
 
@@ -96,39 +93,114 @@ Section BDP_and_BEP.
 
 	Section BDP'.
 
-	(* Unusual notation *)
-	Notation "X ≤ Y" := (exists f: Y -> X, surjective f) (at level 80) : type_scope.
+		(* Unusual notation *)
+		Notation "X ≤ Y" := (exists f: Y -> X, surjective f) (at level 80) : type_scope.
 
-		Definition gBDP'_on (B A: Type):=
-		forall P, exists B', B' ≤ B /\ (exists f: B' -> A, (forall b', P (f b')) -> (forall a, P a)).
-		
-		Lemma BDP_mono_of_surj:
-		forall B B', B ≤ B' -> (gBDP B -> gBDP B').
-		Proof.
-			intros B B' [g hg] bdp A P.
-			destruct (bdp A P) as [f hf].
-			exists (g >> f).
-			intros H. apply hf. intros b.
-			destruct (hg b) as [b' hb'].
-			rewrite <-hb'. apply H.
-		Qed.
-
-		Lemma BDP'_of_BDP: forall B A, gBDP_on B A <-> gBDP'_on B A.
-		Proof.
-			intros B A. split.
-			all: intros bdp P.
-			+ exists B. split. exists id. intros x. exists x. reflexivity.
-				apply (bdp P).
-			+ destruct (bdp P) as [B' [[g hg] [f hf]]].
+			Definition gBDP'_on (B A: Type):=
+			forall P, exists B', B' ≤ B /\ (exists f: B' -> A, (forall b', P (f b')) -> (forall a, P a)).
+			
+			Lemma BDP_mono_of_surj:
+			forall B B', B ≤ B' -> (gBDP B -> gBDP B').
+			Proof.
+				intros B B' [g hg] bdp A P.
+				destruct (bdp A P) as [f hf].
 				exists (g >> f).
-				intros H. apply hf. intros b'. destruct (hg b') as [b hb]. rewrite <-hb. apply H.
-		Qed.
+				intros H. apply hf. intros b.
+				destruct (hg b) as [b' hb'].
+				rewrite <-hb'. apply H.
+			Qed.
+
+			Lemma BDP'_of_BDP: forall B A, gBDP_on B A <-> gBDP'_on B A.
+			Proof.
+				intros B A. split.
+				all: intros bdp P.
+				+ exists B. split. exists id. intros x. exists x. reflexivity.
+					apply (bdp P).
+				+ destruct (bdp P) as [B' [[g hg] [f hf]]].
+					exists (g >> f).
+					intros H. apply hf. intros b'. destruct (hg b') as [b hb]. rewrite <-hb. apply H.
+			Qed.
 
 	End BDP'.
 
 End BDP_and_BEP.
 
 Section DDC_and_BAC.
+
+	Definition extend2_sigP: preds_signature -> preds_signature :=
+			fun s => Build_preds_signature (fun P => match P with 
+					| Some R => @ar_preds s R
+					| None => 2
+					end).
+
+	Context {s_f: funcs_signature}.
+	Context {s_P:  preds_signature}.
+	Context {smaller: Type -> Type -> Prop} {smaller_lt: lessthanT smaller}.
+	Notation "X ≤ Y" := (smaller X Y) (at level 80) : type_scope.
+
+	Definition x2s_P := extend2_sigP s_P.
+
+	Notation x2form := (form s_f x2s_P).
+
+	Theorem DDC_of_DLS:
+	forall M, M ->
+	(forall xM: @model s_f x2s_P, gDLS_on s_f x2s_P xM smaller) ->
+	gDDC_on (term + x2form) M.
+	Proof.
+		intros M m0 dls R hR.
+		pose (xI := @B_I
+				s_f
+				x2s_P
+				M
+				(fun _ _ => m0)
+				(fun Q v => match Q with
+					| Some _ => True
+					| None => match v with 
+						| cons _ v1 _ (cons _ v2 _ (nil _)) => R v1 v2 
+						| _ => False
+						end
+				end)).
+			pose (xM := @Build_model s_f x2s_P M xI).
+			destruct (dls xM) as [N [hsizeN [h hh]]].
+			destruct (surj_of_smaller hsizeN) as [g hg].
+			exists (g >> h).
+
+			pose (phi0 :=
+				quant s_f x2s_P _ _ All
+					(quant s_f x2s_P _ _ All
+						(quant s_f x2s_P _ _ Ex
+							(bin s_f x2s_P _ _ Conj
+								(atom s_f x2s_P _ _ (None) (cons term $2 1 (cons term $0 0 (nil term))))
+								(atom s_f x2s_P _ _ (None) (cons term $1 1 (cons term $0 0 (nil term))))
+							)
+						)
+					)
+				).
+			
+
+			assert (H1 := hh phi0 (fun _ => g (inl $0))). simpl in H1.
+			intros x x'.
+			unfold directedR in hR.
+			rewrite <-H1 in hR.
+			destruct (hR (g x) (g x')) as [n0 hn0].
+			destruct (hg n0) as [y hy].
+			exists y.
+			unfold ">>".
+			rewrite hy.
+			simpl in hn0.
+			assert (H2 :=
+				hh
+					(@atom s_f x2s_P _ _ None (cons term $1 1 (cons term $0 0 (nil term))))
+					( n0 .: (fun _ => (g x)))
+				).
+			assert (H2' :=
+				hh
+					(@atom s_f x2s_P _ _ None (cons term $2 1 (cons term $0 0 (nil term))))
+					( n0 .: (fun _ => (g x')))
+				).
+			simpl in H2, H2'. rewrite <-H2, <-H2'. apply hn0.
+	Qed.
+
 End DDC_and_BAC. 
 
 Print Assumptions BDP_of_DLS.

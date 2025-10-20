@@ -17,11 +17,17 @@ Definition FE  := forall (A B: Type) (f g : A -> B),
 Definition injective {X Y :Type} (f: X -> Y) :=
   forall (x x' : X), f x = f x' -> x = x'.
 
+Definition surjective {A B: Type} (f: A -> B) :=
+	forall b: B, exists a: A, f a  = b.
+
 Definition injectiveR {X Y: Type} (R: X -> Y -> Prop) :=
   forall x x' y0, R x y0 /\ R x' y0 -> x = x'.
 
 Definition totalR {X Y: Type} (R: X -> Y -> Prop) :=
   forall x, exists y, R x y.
+
+Definition directedR {X: Type} (R: X -> X -> Prop) :=
+  forall x x', exists y, R x y /\ R x' y.
 
 Class lessthanT (ltT: Type -> Type -> Prop): Prop := {
   ltT_refl: Reflexive ltT;
@@ -37,6 +43,10 @@ Class lessthanT (ltT: Type -> Type -> Prop): Prop := {
     ltT (sigT X) (sigT Y);
   ltT_ex_sig: forall J, forall (A: J -> Prop), ltT (exists j, A j) (sig (fun j => A j));
 }.
+
+
+Definition SoS {lt: Type -> Type -> Prop} :=
+  forall A B: Type, lt A B -> (exists f: B -> A, surjective f).
 
 Section lt_lemmas.
 
@@ -196,7 +206,12 @@ Section LogicalPrinciples.
     exists f: B -> X,
     (exists x, P x) -> (exists b, P (f b)).
   
+  Definition gDDC_on B X :=
+    forall R: X -> X -> Prop, directedR R ->
+    exists f: B -> X, directedR (fun b b' => R (f b) (f b')).
+
   Definition gBDP B := forall X, gBDP_on B X.
   Definition gBEP B := forall X, gBEP_on B X.
+  Definition gDDC B := forall X, gDDC_on B X.
 
 End LogicalPrinciples.
