@@ -1770,7 +1770,10 @@ Proof.
   assert (hm := eq_refl m0 : A0 m0).
   assert (hA0 := inhabits (Build_of_set hm)).
   pose (N := @model_of_inhabited_set Fall Fex _ hA0).
-  exists N. split.
+  exists N. split. 2: split.
+  + apply inhabits.
+    assert (Step Fall Fex A0 m0). exists 0. apply hm.
+    apply (Build_of_set H).
   + apply (@Step_singl_smaller_term_form seqinf).
   + apply elemsubm_of_nefp_step.
 Qed.

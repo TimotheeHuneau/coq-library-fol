@@ -45,7 +45,7 @@ Class lessthanT (ltT: Type -> Type -> Prop): Prop := {
 }.
 
 
-Definition SoS {lt: Type -> Type -> Prop} :=
+Definition SoS (lt: Type -> Type -> Prop) :=
   forall A B: Type, lt A B -> (exists f: B -> A, surjective f).
 
 Section lt_lemmas.
@@ -188,7 +188,7 @@ Section DLS.
 
   Definition gDLS_on := 
     exists (N: model),
-    (N ≤ (term + form)%type) /\ N ⪳ M.
+    inhabited N /\ (N ≤ (term + form)%type) /\ N ⪳ M.
 
 End DLS.
 
