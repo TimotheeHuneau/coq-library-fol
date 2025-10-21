@@ -5,14 +5,8 @@ Require Import FOL.ModelTheory.Core.
 (* Non-constructive axioms *)
 
 Definition PI: Prop := forall P, forall p1 p2: P, p1 = p2.
-Definition LEM: Prop := forall P: Prop, (P \/ ~ P).
-Definition AC: Prop :=
-  forall (A B: Type) (R: A -> B -> Prop),
-  (forall a: A, exists b: B, R a b) ->
-  (exists f: A -> B, forall a, R a (f a)).
 Definition FE  := forall (A B: Type) (f g : A -> B),
   (forall x, f x = g x) -> f = g.
-
 
 Definition injective {X Y :Type} (f: X -> Y) :=
   forall (x x' : X), f x = f x' -> x = x'.
@@ -209,9 +203,14 @@ Section LogicalPrinciples.
   Definition gDDC_on B X :=
     forall R: X -> X -> Prop, directedR R ->
     exists f: B -> X, directedR (fun b b' => R (f b) (f b')).
+  
+  Definition gAC_on B X :=
+    forall R: B -> X -> Prop, totalR R ->
+    exists f: B -> X, forall b, R b (f b).
 
   Definition gBDP B := forall X, gBDP_on B X.
   Definition gBEP B := forall X, gBEP_on B X.
   Definition gDDC B := forall X, gDDC_on B X.
+  Definition gAC B := forall X, gAC_on B X.
 
 End LogicalPrinciples.

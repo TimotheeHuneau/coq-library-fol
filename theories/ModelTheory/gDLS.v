@@ -10,38 +10,6 @@ Require Import FOL.ModelTheory.LogicalPrinciples.
 Require Import FOL.ModelTheory.ConstructiveLS.
 Require Import FOL.ModelTheory.gDLS_defs.
 
-Lemma forall_not_is_not_exists:
-forall (A: Type) (P: A -> Prop),
-(forall a, ~ P a) <-> (~ exists a, P a).
-Proof.
-  intros A P. split. all: intros H.
-  + intros [a Ha]. apply (H a Ha).
-  + intros a Ha. apply H. exists a. apply Ha.
-Qed.
-
-Lemma DNE_of_LEM:
-LEM -> forall P: Prop, P <-> ~ ~ P. 
-Proof.
-  intros hLEM P. split.
-  + intros p np. apply (np p).
-  + intros nnp. destruct (hLEM P) as [p|np].
-    - apply p.
-    - exfalso. apply (nnp np).
-Qed.
-
-Lemma not_forall_is_exists_not:
-LEM ->
-forall (A: Type) (P: A -> Prop), 
-(~ forall a, P a) <-> (exists a, ~ P a).
-Proof.
-  intros hLEM A P. split. all: intros H.
-  + destruct (hLEM (exists a, ~ P a)).
-    - apply H0.
-    - rewrite <-forall_not_is_not_exists in H0.
-      exfalso. apply H. intros a. apply (DNE_of_LEM hLEM (P a)), H0.
-  + intros h. destruct H as [m0 Hm0]. apply Hm0. apply h.
-Qed.
-
 Axiom pi: PI.
 Axiom fe: FE.
 
@@ -1772,7 +1740,7 @@ Proof.
   pose (N := @model_of_inhabited_set Fall Fex _ hA0).
   exists N. split. 2: split.
   + apply inhabits.
-    assert (Step Fall Fex A0 m0). exists 0. apply hm.
+    assert (H: Step Fall Fex A0 m0). exists 0. apply hm.
     apply (Build_of_set H).
   + apply (@Step_singl_smaller_term_form seqinf).
   + apply elemsubm_of_nefp_step.
