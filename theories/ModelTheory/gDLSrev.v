@@ -303,27 +303,73 @@ Section DDC_and_BAC.
 	Definition es_f: funcs_signature :=
 			Build_funcs_signature (fun f: False => match f return nat with end).
 
-	Definition totaldR {X Y} (R: (forall x: X, Y x -> Prop)) :=
-  forall x, exists y, R x y.
+	Context {kappa: Type}.
+	Definition k1s_P: preds_signature := 
+		Build_preds_signature (fun o: kappa => 1).
+
+	Definition BAC_on K B (R: K -> B -> Prop) :=
+	inhabited B -> (forall n, exists y, R n y) -> exists f : K -> B, forall n, exists w, R n (f w).
+
+Theorem LS_implies_BAC (A: Type) (P: kappa -> A -> Prop): 
+(forall M, gDLS_on es_f k1s_P M smaller) ->
+@BAC_on kappa A P.
+	Proof.
+		intros dls [a0] total_R.
+		pose (xI := @B_I
+			es_f 
+			k1s_P	
+			A
+			(fun _ _ => a0)
+			(fun k v => P k (hd v))
+		).
+		pose (xM := @Build_model es_f k1s_P A xI).
+		assert (forall k ρ, ρ ⊨ (∃ (atom es_f k1s_P _ _ k (cons _ ($0) _ (nil _))))).
+		- cbn; intros; apply total_R.
+		- destruct (dls xM) as [N [[n0] [hsizeN [h ele_el__h]]]].
+			assert (forall (m: kappa) (ρ: env xM), ρ ⊨ (∃ atom es_f k1s_P _ _ m (cons term $0 0 (nil term)))).
+			+ intro m. apply (H m).
+			(* + exists (fun (n: kappa) => h (E_term n)).
+				intro m; destruct (H0 m var) as [x Hx].
+				exists (term_E x).
+				specialize (ele_el__h (atom m (cons term ($0) 0 (nil term))) (fun _ => x)).
+				cbn in ele_el__h.
+				rewrite E_Κ.
+				unfold ">>" in ele_el__h; rewrite <- ele_el__h.
+				now cbn in Hx. *)
+	Admitted.
+
 
 	Definition gAC_on B X :=
     forall R: B -> X -> Prop, totalR R ->
-		exists B', B' ≤ B /\ exists f: B' -> X, forall b b', R b (f b').
+		exists f: B -> X, forall b, R b (f b).
 
 	Theorem AC_of_DLS:
 	forall M, M ->
-	(forall xM: @model es_f s_P, gDLS_on es_f s_P xM smaller) ->
-	gAC_on (s_P) (sigT (fun n => vec M n)).
+	(forall xM: @model es_f k1s_P, gDLS_on es_f k1s_P xM smaller) ->
+	gAC_on (k1s_P) (M).
 	Proof.
 		intros M m0 dls R hR.
 		pose (xI := @B_I
 				es_f
-				s_P
+				k1s_P
 				M
 				(fun _ _ => m0)
-				(fun Q v => R Q (existT _ (ar_preds Q) v))).
-		pose (xM := @Build_model es_f s_P M xI).
+				(fun Q v => R Q (hd v))).
+		pose (xM := @Build_model es_f k1s_P M xI).
 		destruct (dls xM) as [N [[n0] [hsizeN [h hh]]]].
+		destruct (surj_of_smaller hsizeN) as [g hg].
+		exists (fun Q => h (g (inr (atom es_f k1s_P _ _ Q (cons term $0 0 (nil term)))))).
+		intros Q.
+		unfold totalR in hR.
+		assert (hQ := hR Q).
+		pose (phiQ :=
+			quant es_f k1s_P _ _ Ex
+				(atom es_f k1s_P _ _ Q
+					(cons term $0 0 (nil term))
+				)
+			).
+		assert (HdlsQ := hh phiQ (fun _ => n0)). simpl in HdlsQ.
+		rewrite <-HdlsQ in hQ.
 	Admitted.
 
 	Section DDC'.
@@ -392,6 +438,68 @@ Section DDC_and_BAC.
 	End DDC'.
 
 End DDC_and_BAC.
+
+Section RDLS.
+
+	Definition extend1_sigP: preds_signature -> preds_signature :=
+			fun s => Build_preds_signature (fun P => match P with 
+					| Some R => @ar_preds s R
+					| None => 1
+					end).
+
+
+	Context {s_f: funcs_signature}.
+	Context {s_P:  preds_signature}.
+	Definition x1s_P := extend1_sigP s_P.
+	Definition x1form := form s_f x1s_P.
+
+	Theorem BDP_of_RDLS: (forall M, @RDLS_on s_f x1s_P M) -> forall A, A -> gBDP_on x1form A.
+	Proof.
+		intros dls A a0 P.
+		pose (mA := Build_model (@B_I s_f x1s_P _
+			(fun _ _ => a0)
+			(fun q v0 => match q, v0 with
+				| Some _, _ => True
+				| None, nil _ => False
+				| None, cons _ a _ _ =>P a
+				end)
+			)).
+		destruct (dls mA) as [IF [h Hh]].
+		exists h.
+		intros Hg.
+		pose (phiQ := quant s_f x1s_P _ _ All (@atom s_f x1s_P _ _ (None) (cons term $0 _ (nil term)))).
+		assert (H := Hh phiQ (fun _ => falsity)).  simpl in H. rewrite <-H.
+		intros n0.
+		pose (phin0 := (@atom s_f x1s_P _ _ (None) (cons term $0 _ (nil term)))).
+		assert (Hn0 := Hh phin0 (fun _ => n0)).  simpl in Hn0. rewrite Hn0. apply Hg.
+	Qed.
+	
+	Theorem BEP_of_RDLS: (forall M, @RDLS_on s_f x1s_P M) -> forall A, A -> gBEP_on x1form A.
+	Proof.
+		intros dls A a0 P.
+		pose (mA := Build_model (@B_I s_f x1s_P _
+			(fun _ _ => a0)
+			(fun q v0 => match q, v0 with
+				| Some _, _ => True
+				| None, nil _ => False
+				| None, cons _ a _ _ =>P a
+				end)
+			)).
+		destruct (dls mA) as [IF [h Hh]].
+		exists h.
+		intros Hg.
+		pose (phiQ := quant s_f x1s_P _ _ Ex (@atom s_f x1s_P _ _ (None) (cons term $0 _ (nil term)))).
+		assert (HQ := Hh phiQ (fun _ => falsity)). simpl in HQ.
+		rewrite <-HQ in Hg. destruct Hg as [n0 Hn0].
+		pose (phi0 := @atom s_f x1s_P _ _ (None) (cons term $0 _ (nil term))).
+		exists n0.
+		assert (Hphin0 := Hh phi0 (fun _ => n0)).
+		simpl in Hphin0. unfold ">>" in Hphin0.
+		rewrite <-Hphin0. apply Hn0.
+	Qed.
+
+End RDLS.
+
 
 Notation "A ≤s B" := (exists f: B -> A, surjective f) (at level 90).
 

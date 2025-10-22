@@ -184,6 +184,9 @@ Section DLS.
     exists (N: model),
     inhabited N /\ (N ≤ (term + form)%type) /\ N ⪳ M.
 
+  Definition RDLS_on :=
+    exists (IF: interp form), ((Build_model IF) ⪳ M).
+
 End DLS.
 
 Arguments gDLS_on _ _ _ _  : clear implicits.
