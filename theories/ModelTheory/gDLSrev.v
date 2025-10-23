@@ -2,32 +2,38 @@ Require Import Lia.
 Require Import FOL.ModelTheory.Core.
 Require Import FOL.ModelTheory.gDLS_defs.
 
-Section BDP_and_BEP.
+Definition extend1_sigP: preds_signature -> preds_signature :=
+		fun s => Build_preds_signature (fun P => match P with 
+			| Some R => @ar_preds s R
+			| None => 1
+			end).
 
-	Definition extend_sigP: preds_signature -> preds_signature :=
-			fun s => Build_preds_signature (fun P => match P with 
-					| Some R => @ar_preds s R
-					| None => 1
-					end).
+Definition extend2_sigP: preds_signature -> preds_signature :=
+		fun s => Build_preds_signature (fun P => match P with 
+			| Some R => @ar_preds s R
+			| None => 2
+			end).
+
+Section BDP_and_BEP.
 
 	Context {s_f: funcs_signature}.
 	Context {s_P:  preds_signature}.
 	Context {smaller: Type -> Type -> Prop} {smaller_lt: lessthanT smaller} {surj_of_smaller: SoS smaller}.
 	Notation "X ≤ Y" := (smaller X Y) (at level 80) : type_scope.
 
-	Definition xs_P := extend_sigP s_P.
+	Definition x1s_P := extend1_sigP s_P.
 
-	Notation xform := (form s_f xs_P).
+	Notation x1form := (form s_f x1s_P).
 
 	Theorem BDP_of_DLS:
 	forall M: Type, M -> 
-	(forall xM: @model s_f xs_P, gDLS_on s_f xs_P xM smaller) ->
-	gBDP_on (term + xform) M.
+	(forall xM: @model s_f x1s_P, gDLS_on s_f x1s_P xM smaller) ->
+	gBDP_on (term + x1form) M.
 	Proof.
 			intros M m0 dls P.
 			pose (xI := @B_I
 				s_f
-				xs_P
+				x1s_P
 				M
 				(fun _ _ => m0)
 				(fun Q v => match Q with
@@ -37,19 +43,19 @@ Section BDP_and_BEP.
 						| _ => False
 						end
 				end)).
-			pose (xM := @Build_model s_f xs_P M xI).
+			pose (xM := @Build_model s_f x1s_P M xI).
 			destruct (dls xM) as [N [[n0] [hsizeN [h hh]]]].
 			destruct (surj_of_smaller hsizeN) as [g hg].
 			exists (g >> h).
 			intros Htf. 
 
 			(* phi0 :=  `∀ p(x0)` *)
-			pose (phi0 := quant s_f xs_P _ _ All (@atom s_f xs_P _ _ (None) (cons term $0 0 (nil term)))).
+			pose (phi0 := quant s_f x1s_P _ _ All (@atom s_f x1s_P _ _ (None) (cons term $0 0 (nil term)))).
 			assert (H3 := hh phi0 (fun _ => g (inl $0))); simpl in H3.
 			rewrite <-H3.
 			
 			intros n'.
-			assert (H5 := hh (@atom s_f xs_P _ _ None (cons term $0 0 (nil term))) (fun _ => n')); simpl in H5.
+			assert (H5 := hh (@atom s_f x1s_P _ _ None (cons term $0 0 (nil term))) (fun _ => n')); simpl in H5.
 			rewrite H5.
 			destruct (hg n') as [x hx]. unfold ">>". rewrite <-hx.
 			apply (Htf x).
@@ -57,13 +63,13 @@ Section BDP_and_BEP.
 
 	Theorem BEP_of_DLS:
 	forall M: Type, M -> 
-	(forall xM: @model s_f xs_P, gDLS_on s_f xs_P xM smaller) ->
-	gBEP_on (term + xform) M.
+	(forall xM: @model s_f x1s_P, gDLS_on s_f x1s_P xM smaller) ->
+	gBEP_on (term + x1form) M.
 	Proof.
 		intros M m0 dls P.
 		pose (xI := @B_I
 				s_f
-				xs_P
+				x1s_P
 				M
 				(fun _ _ => m0)
 				(fun Q v => match Q with
@@ -73,17 +79,17 @@ Section BDP_and_BEP.
 						| _ => False
 						end
 				end)).
-			pose (xM := @Build_model s_f xs_P M xI).
+			pose (xM := @Build_model s_f x1s_P M xI).
 			destruct (dls xM) as [N [[n0] [hsizeN [h hh]]]].
 			destruct (surj_of_smaller hsizeN) as [g hg].
 			exists (g >> h).
 
-			pose (phi0 := quant s_f xs_P _ _ Ex (@atom s_f xs_P _ _ (None) (cons term $0 0 (nil term)))).
+			pose (phi0 := quant s_f x1s_P _ _ Ex (@atom s_f x1s_P _ _ (None) (cons term $0 0 (nil term)))).
 			assert (H3 := hh phi0 (fun _ => g (inl $0))); simpl in H3.
 			rewrite <-H3.
 			
 			intros [n hn].
-			assert (H5 := hh (@atom s_f xs_P _ _ None (cons term $0 0 (nil term))) (fun _ => n)); simpl in H5.
+			assert (H5 := hh (@atom s_f x1s_P _ _ None (cons term $0 0 (nil term))) (fun _ => n)); simpl in H5.
 			destruct (hg n) as [x hx].
 			exists x. unfold ">>". rewrite hx.
 			rewrite <-H5. apply hn.
@@ -107,13 +113,13 @@ Section BDP_and_BEP.
 
 		Theorem BDP'_of_DLS:
 		forall M: Type, M -> 
-		(forall xM: @model s_f xs_P, gDLS_on s_f xs_P xM smaller) ->
-		gBDP'_on (term + xform) M.
+		(forall xM: @model s_f x1s_P, gDLS_on s_f x1s_P xM smaller) ->
+		gBDP'_on (term + x1form) M.
 		Proof.
 				intros M m0 dls P.
 				pose (xI := @B_I
 					s_f
-					xs_P
+					x1s_P
 					M
 					(fun _ _ => m0)
 					(fun Q v => match Q with
@@ -123,18 +129,18 @@ Section BDP_and_BEP.
 							| _ => False
 							end
 					end)).
-				pose (xM := @Build_model s_f xs_P M xI).
+				pose (xM := @Build_model s_f x1s_P M xI).
 				destruct (dls xM) as [N [[n0] [hsizeN [h hh]]]].
 				exists N. split.
 				apply hsizeN.
 				exists h.
 
 				(* phi0 :=  `∀ P(x0)` *)
-				pose (phi0 := quant s_f xs_P _ _ All (atom s_f xs_P _ _ (None) (cons term $0 0 (nil term)))).
+				pose (phi0 := quant s_f x1s_P _ _ All (atom s_f x1s_P _ _ (None) (cons term $0 0 (nil term)))).
 				assert (Hphi0 := hh phi0 (fun _ => n0)); simpl in Hphi0.
 				rewrite <-Hphi0.
 				intros H n'.
-				assert (Hs := hh (@atom s_f xs_P _ _ None (cons term $0 0 (nil term))) (fun _ => n'));
+				assert (Hs := hh (@atom s_f x1s_P _ _ None (cons term $0 0 (nil term))) (fun _ => n'));
 				simpl in Hs.
 				rewrite Hs. apply H.
 		Qed.
@@ -159,13 +165,13 @@ Section BDP_and_BEP.
 
 		Theorem BEP'_of_DLS:
 		forall M: Type, M -> 
-		(forall xM: @model s_f xs_P, gDLS_on s_f xs_P xM smaller) ->
-		gBEP'_on (term + xform) M.
+		(forall xM: @model s_f x1s_P, gDLS_on s_f x1s_P xM smaller) ->
+		gBEP'_on (term + x1form) M.
 		Proof.
 				intros M m0 dls P.
 				pose (xI := @B_I
 					s_f
-					xs_P
+					x1s_P
 					M
 					(fun _ _ => m0)
 					(fun Q v => match Q with
@@ -175,18 +181,18 @@ Section BDP_and_BEP.
 							| _ => False
 							end
 					end)).
-				pose (xM := @Build_model s_f xs_P M xI).
+				pose (xM := @Build_model s_f x1s_P M xI).
 				destruct (dls xM) as [N [[n0] [hsizeN [h hh]]]].
 				exists N. split.
 				apply hsizeN.
 				exists h.
 
 				(* phi0 :=  `∀ P(x0)` *)
-				pose (phi0 := quant s_f xs_P _ _ Ex (@atom s_f xs_P _ _ (None) (cons term $0 0 (nil term)))).
+				pose (phi0 := quant s_f x1s_P _ _ Ex (@atom s_f x1s_P _ _ (None) (cons term $0 0 (nil term)))).
 				assert (Hphi0 := hh phi0 (fun _ => n0)); simpl in Hphi0.
 				rewrite <-Hphi0.
 				intros [n Hn].
-				assert (Hs := hh (@atom s_f xs_P _ _ None (cons term $0 0 (nil term))) (fun _ => n));
+				assert (Hs := hh (@atom s_f x1s_P _ _ None (cons term $0 0 (nil term))) (fun _ => n));
 				simpl in Hs.
 				exists n.
 				rewrite <-Hs. apply Hn.
@@ -197,12 +203,6 @@ Section BDP_and_BEP.
 End BDP_and_BEP.
 
 Section DDC_and_BAC.
-
-	Definition extend2_sigP: preds_signature -> preds_signature :=
-			fun s => Build_preds_signature (fun P => match P with 
-					| Some R => @ar_preds s R
-					| None => 2
-					end).
 
 	Context {s_f: funcs_signature}.
 	Context {s_P:  preds_signature}.
@@ -441,18 +441,15 @@ End DDC_and_BAC.
 
 Section RDLS.
 
-	Definition extend1_sigP: preds_signature -> preds_signature :=
-			fun s => Build_preds_signature (fun P => match P with 
-					| Some R => @ar_preds s R
-					| None => 1
-					end).
-
-
 	Context {s_f: funcs_signature}.
 	Context {s_P:  preds_signature}.
-	Definition x1s_P := extend1_sigP s_P.
-	Definition x1form := form s_f x1s_P.
+	Context {kappa: Type}.
 
+	Notation x1form := (form s_f x1s_P).
+	Notation x2form := (form s_f x2s_P).
+	Definition k2s_P := @Build_preds_signature kappa (fun k => 2).
+	Notation k2form := (form s_f k2s_P).
+	
 	Theorem BDP_of_RDLS: (forall M, @RDLS_on s_f x1s_P M) -> forall A, A -> gBDP_on x1form A.
 	Proof.
 		intros dls A a0 P.
@@ -496,6 +493,49 @@ Section RDLS.
 		assert (Hphin0 := Hh phi0 (fun _ => n0)).
 		simpl in Hphin0. unfold ">>" in Hphin0.
 		rewrite <-Hphin0. apply Hn0.
+	Qed.
+
+	Theorem DDC_of_RDLS: (forall M, @RDLS_on s_f x2s_P M) -> forall A, A -> gDDC_on x2form A.
+	Proof.
+		intros dls A a0 R HR.
+		pose (mA := Build_model (@B_I s_f x2s_P _
+			(fun _ _ => a0)
+			(fun q v0 => match q, v0 with
+				| Some _, _ => True
+				| None, cons _ a1 _ (cons _ a2 _ (nil _)) => R a1 a2
+				| None, _ => False
+				end)
+			)).
+		destruct (dls mA) as [IF [h Hh]].
+		exists h.
+		pose (phiQ :=
+				quant s_f x2s_P _ _ All
+					(quant s_f x2s_P _ _ All
+						(quant s_f x2s_P _ _ Ex
+							(bin s_f x2s_P _ _ Conj
+								(atom s_f x2s_P _ _ (None) (cons term $2 1 (cons term $0 0 (nil term))))
+								(atom s_f x2s_P _ _ (None) (cons term $1 1 (cons term $0 0 (nil term))))
+							)
+						)
+					)
+				).
+		assert (HQ := Hh phiQ (fun _ => falsity)); simpl in HQ.
+		rewrite <-HQ in HR.
+		intros x x'.
+		destruct (HR x x') as [y Hy].
+		exists y.
+		unfold ">>".
+		assert (Hs :=
+			Hh
+				(@atom s_f x2s_P _ _ None (cons term $1 1 (cons term $0 0 (nil term))))
+				( y .: (fun _ => x))
+			).
+		assert (Hs' :=
+			Hh
+				(@atom s_f x2s_P _ _ None (cons term $2 1 (cons term $0 0 (nil term))))
+				( y .: (fun _ => x'))
+			).
+		simpl in Hs, Hs'. rewrite <-Hs, <-Hs'. apply Hy.
 	Qed.
 
 End RDLS.
