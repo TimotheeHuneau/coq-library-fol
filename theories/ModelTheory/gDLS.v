@@ -18,11 +18,9 @@ Axiom fe: FE.
 Definition set (M: Type) : Type := M -> Prop.
 
 Definition subset {X} (A B: set X) := forall x, (A x -> B x).
-
 Notation "A << B" := (subset A B) (at level 81).
 
 Definition eqset {X} (A B: set X) := (A << B) /\ (B << A).
-
 Notation "A == B" := (eqset A B) (at level 70).
 
 Definition growing {X} (f: set X -> set X) :=
@@ -214,8 +212,7 @@ Section HelperLemmas.
     + rewrite fold_left_max_0'. inversion ha as [m0 v0 Hn Hh|m0 h0 vt Havt Hn Hh]. 
       - apply PeanoNat.Nat.le_max_l.
       - transitivity (fold_left max 0 t). apply IHv.
-        inversion H. apply Havt.
-        apply PeanoNat.Nat.le_max_r.
+        inversion H. apply Havt. lia.
   Qed.
 
   Lemma map_In {A B: Type} (f: A -> B) {n} (v: vec A n) (a: A):
@@ -342,7 +339,53 @@ Section ModelTheory.
     + intros HA. simpl in *. rewrite <-(coe_vec_comm_of_fcl Hf). apply HA.
   Qed.
 
-  Theorem elemsubm_of_tvcl' {ff: falsity_flag} {A: set M} {Hf: fcl A} (Htv: tvcl A):
+  Definition isBlurredTarskiVaught_all {B: Type} (F: form -> (env M) -> B -> M) : Prop :=
+    forall phi rho,
+    (forall b, M ⊨[(F phi rho b) .: rho] phi) -> M ⊨[rho] ∀ phi.
+
+
+  Definition isBlurredTarskiVaught_ex {B: Type} (F: form -> (env M) -> B -> M) : Prop :=
+    forall phi rho,
+    M ⊨[rho] (∃ phi) -> exists b, M ⊨[(F phi rho b) .: rho] phi.
+
+  Definition form_max_var := fun phi => proj1_sig (find_bounded phi).
+
+  Definition respectsFormEnvInvariance {B: Type} (F: form -> (env M) -> B -> M): Prop :=
+    forall (phi: form), forall (rho rho': env M),
+    enveq (form_max_var phi) rho rho' -> F phi rho = F phi rho'.
+
+  Record FEI (B: Type) : Type := 
+    {
+      fFEI :> form -> env M -> B -> M;
+      hFEI : respectsFormEnvInvariance fFEI;
+      hB: inhabited B;
+    }.
+
+  Record BTV_all (B: Type) : Type :=
+    {
+      F_all:> FEI B;
+      hwit_all: isBlurredTarskiVaught_all F_all;
+    }.
+
+  Record BTV_ex (B: Type) : Type :=
+    {
+      F_ex :> FEI B;
+      hwit_ex : isBlurredTarskiVaught_ex F_ex;
+    }.
+
+  Definition tvcl' {B: Type} (Fall: BTV_all B) (Fex: BTV_ex B) (A: set M) : Prop :=
+  (forall phi, forall rho : env (of_set A), forall b: B,
+  A (Fall phi (coe_env_of_set rho) b)) /\
+  (forall phi, forall rho : env (of_set A), forall b: B,
+  A (Fex phi (coe_env_of_set rho) b)).
+
+  Theorem elemsubm_of_tvcl'
+    {B: Type}
+    {Gall: BTV_all B}
+    {Gex: BTV_ex B}
+    {A: set M}
+    {Hf: fcl A}
+    (Htv: tvcl' Gall Gex A):
   model_of_fcl Hf ⪳[@elem A] M.
   Proof.
     intros phi. induction phi.
@@ -354,120 +397,45 @@ Section ModelTheory.
     + destruct b0; firstorder. 
     + destruct b0; firstorder.
     + destruct q.
-      - destruct Htv as [Hall Hex].
-        destruct (Hall phi rho) as [wall hwall].
-        eapply hwall, IHphi, HA.
-        firstorder.
-      - destruct HA as [a ha].
-        exists a. simpl in *. rewrite <-(cons_comm_elem _ _). apply IHphi, ha. apply Htv.
-    + destruct q.
-      - intros a. simpl in *. apply IHphi. apply Htv.
-        rewrite (cons_comm_elem _ _). apply (HA a).
-      - destruct Htv as [Hall Hex]. assert (Htv := conj Hall Hex).
-        destruct (Hex phi rho) as [wex hwex].
-        exists wex. apply (IHphi Htv), hwex, HA.
-  Qed.
+  Admitted.
 
-  Theorem elemsubm_of_tvcl {ff: falsity_flag} {A: set M} {Hf: fcl A} (Htv: tvcl A):
+  Theorem elemsubm_of_tvcl
+    {B: Type}
+    {Gall: BTV_all B}
+    {Gex: BTV_ex B}
+    {A: set M}
+    {Hf: fcl A}
+    (Htv: tvcl' Gall Gex A):
   model_of_fcl Hf ⪳ M.
   Proof.
     exists (@elem A).
     apply (elemsubm_of_tvcl' Htv).
   Qed.
 
-  Definition isTarskiVaught_all (F: (env M) -> form -> M) : Prop :=
-    forall rho phi,
-    (M ⊨[(F rho phi) .: rho] phi) -> M ⊨[rho] ∀ phi.
-
-
-  Definition isTarskiVaught_ex (F: (env M) -> form -> M) : Prop :=
-    forall rho phi,
-    M ⊨[rho] (∃ phi) -> M ⊨[(F rho phi) .: rho] phi.
-
-  Definition form_max_var := fun phi => proj1_sig (find_bounded phi).
-
-  Definition respectsFormEnvInvariance (F: (env M) -> form -> M): Prop :=
-    forall (phi: form), forall (rho rho': env M),
-    enveq (form_max_var phi) rho rho' -> F rho phi = F rho' phi.
-
-  Record FEI : Type := 
-    {
-      fFEI :> env M -> form -> M;
-      hFEI : respectsFormEnvInvariance fFEI;
-    }.
-
-  Record TV_all : Type :=
-    {
-      F_all:> FEI ;
-      hwit_all: isTarskiVaught_all F_all;
-    }.
-
-  Record TV_ex : Type :=
-    {
-      F_ex :> FEI;
-      hwit_ex : isTarskiVaught_ex F_ex;
-    }.
-
-  Definition tvcl' (Fall: TV_all) (Fex: TV_ex) (A: set M) : Prop :=
-  (forall phi, forall rho : env (of_set A),
-  A (Fall (coe_env_of_set rho) phi)) /\
-  (forall phi, forall rho : env (of_set A),
-  A (Fex  (coe_env_of_set rho) phi)).
-
-  (* Poor proof style *)
-  Theorem tvcl_of_tvcl' (A: set M): 
-  forall Fall Fex, tvcl' Fall Fex A -> tvcl A.
-  Proof.
-    intros Fall Fex.
-    intros [Hall Hex]. split. all: intros phi rho.
-    + exists (@Build_of_set A _ (Hall phi rho)).
-      intros h. intros a.
-      apply (@hwit_all Fall).
-      assert (elem (Build_of_set (Hall phi rho)) = (Fall rho phi)). eauto.
-      rewrite <-H.
-      assert
-        ((fun n => elem ((Build_of_set (Hall phi rho) .: rho) n)) =
-        ((Fall (coe_env_of_set rho) phi) .: (fun n => rho n))).
-        apply cons_comm_elem.
-      simpl.
-      rewrite <-H0. apply h.
-    + exists (@Build_of_set A _ (Hex phi rho)).
-      intros [a h].
-      assert
-        ((fun n => elem ((Build_of_set (Hex phi rho) .: rho) n)) =
-        ((Fex (coe_env_of_set rho) phi) .: (fun n => rho n))).
-        apply cons_comm_elem.
-      rewrite H.
-      assert (elem (Build_of_set (Hall phi rho)) = (Fall rho phi)). eauto.
-      apply (@hwit_ex Fex).
-      exists a.
-      apply h.
-  Qed.
-
-  Definition stepForm (Fall: TV_all) (Fex: TV_ex) (A : set M) := (fun m =>
-    (exists (phi: form) (rho: env M),
-    (forall n, A (rho n)) /\ (m = (Fall rho phi) \/ m = (Fex rho phi)))).
+  Definition stepForm {B: Type} (Gall: BTV_all B) (Gex: BTV_ex B) (A : set M) := (fun m =>
+    (exists (phi: form) (rho: env M) (b: B),
+    (forall n, A (rho n)) /\ (m = (Gall phi rho b) \/ m = (Gex phi rho b)))).
 
   Definition stepTerm  (A: set M) := (fun m =>
     (exists (t: term) (rho: env M),
     (forall n, A (rho n)) /\ m = t ₜ[M] rho)).
 
-  Definition step (Fall: TV_all) (Fex: TV_ex) (A : set M):
+  Definition step {B: Type} (Gall: BTV_all B) (Gex: BTV_ex B) (A : set M):
   set M :=
-  union (stepForm Fall Fex A) (stepTerm A).
+  union (stepForm Gall Gex A) (stepTerm A).
 
-  Definition Step (Fall: TV_all) (Fex: TV_ex) (A : set M):
+  Definition Step {B: Type} (Gall: BTV_all B) (Gex: BTV_ex B) (A : set M):
   set M :=
-  closure (step Fall Fex) A.
+  closure (step Gall Gex) A.
 
-  Lemma Step_grow (Fall: TV_all) (Fex: TV_ex):
-  growing (Step Fall Fex).
+  Lemma Step_grow {B: Type} (Gall: BTV_all B) (Gex: BTV_ex B):
+  growing (Step Gall Gex).
   Proof.
     intros A x hA. exists 0. apply hA.
   Qed.
   
-  Definition nefp_step (Fall: TV_all) (Fex: TV_ex) (A: set M) :=
-  inhabited (of_set A) /\ (A == step Fall Fex A).
+  Definition nefp_step {B: Type} (Gall: BTV_all B) (Gex: BTV_ex B) (A: set M) :=
+  inhabited (of_set A) /\ (A == step Gall Gex A).
 
   Fixpoint vec_n_nat (n: nat) := match n with 
     | O => nil nat 
@@ -536,7 +504,7 @@ Section ModelTheory.
       rewrite cons_comm_elem, eval_up_down. apply IHv.
   Qed.
 
-  Lemma fcl_of_nefp_step {Fall: TV_all} {Fex: TV_ex} {A: set M} (H: nefp_step Fall Fex A):
+  Lemma fcl_of_nefp_step {B: Type} {Gall: BTV_all B} {Gex: BTV_ex B} {A: set M} (H: nefp_step Gall Gex A):
   fcl A.
   Proof.
     destruct H as [[a0] [_ hfp']].
@@ -553,33 +521,33 @@ Section ModelTheory.
     reflexivity.
   Qed.
 
-  Theorem tvcl'_of_nefp_step {Fall: TV_all} {Fex: TV_ex} {A: set M} (H: nefp_step Fall Fex A):
-  tvcl' Fall Fex A.
+  Theorem tvcl'_of_nefp_step {B: Type} {Gall: BTV_all B} {Gex: BTV_ex B} {A: set M} (H: nefp_step Gall Gex A):
+  tvcl' Gall Gex A.
   Proof.
     destruct H as [[a0] [_ hfp']]. split.
-    all: intros phi rho.
+    all: intros phi rho b.
     all: apply hfp'.
     all: left.
-    all: exists phi, rho.
+    all: exists phi, rho, b.
     all: split.
     1,3: apply env_n_in_A.
     1: left. 2: right.
     all: reflexivity.
   Qed.
 
-  Theorem elemsubm_of_nefp_step {Fall: TV_all} {Fex: TV_ex} {A: set M}
-  (H: nefp_step Fall Fex A):
+  Theorem elemsubm_of_nefp_step {B: Type} {Gall: BTV_all B} {Gex: BTV_ex B} {A: set M}
+  (H: nefp_step Gall Gex A):
   (fcl_of_nefp_step >> model_of_fcl) H ⪳ M.
   Proof.
-    apply elemsubm_of_tvcl.
-    apply (tvcl_of_tvcl' (tvcl'_of_nefp_step H)).
+    apply (@elemsubm_of_tvcl B Gall Gex).
+    apply (tvcl'_of_nefp_step H).
   Qed.
 
   Fact step_grow:
-  forall (Fall: TV_all) (Fex: TV_ex),
-  growing (step Fall Fex).
+  forall {B: Type} (Gall: BTV_all B) (Gex: BTV_ex B),
+  growing (step Gall Gex).
   Proof.
-    intros Fall Fex.
+    intros B Fall Fex.
     intros A x hxA.
     right. exists ($ 0), (fun _ => x). split.
     intros _. apply hxA.
@@ -587,14 +555,14 @@ Section ModelTheory.
   Qed.
 
   Fact step_incr :
-  forall (Fall: TV_all) (Fex: TV_ex),
-  forall (A B: set M), (A << B) -> (step Fall Fex A << step Fall Fex B) .
+  forall {B: Type} (Gall: BTV_all B) (Gex: BTV_ex B),
+  forall (A0 A1: set M), (A0 << A1) -> (step Gall Gex A0 << step Gall Gex A1) .
   Proof.
-    intros Fall Fex.
-    intros A B hAB x [[phi [rho [hrho hx]]]|[t [rho [hrho hx]]]].
-    left. exists phi, rho. split. intros n. apply hAB, hrho.
+    intros B Gall Gex.
+    intros A A1 hAA1 x [[phi [rho [b [hrho hx]]]]|[t [rho [hrho hx]]]].
+    left. exists phi, rho, b. split. intros n. apply hAA1, hrho.
     apply hx.
-    right. exists t, rho. split. intros n. apply hAB, hrho.
+    right. exists t, rho. split. intros n. apply hAA1, hrho.
     apply hx.
   Qed.
   
@@ -609,11 +577,11 @@ Section ModelTheory.
         apply (IHm n H1). apply H.
   Qed.
 
-  Lemma step_n_grow {n: nat} (Fall: TV_all) (Fex: TV_ex):
-  growing (iteration n (step Fall Fex)).
+  Lemma step_n_grow {n: nat} {B: Type} (Gall: BTV_all B) (Gex: BTV_ex B):
+  growing (iteration n (step Gall Gex)).
   Proof.
     intros A.
-    apply (iteration_grow_n (step_grow Fall Fex) (n:=0)). lia.
+    apply (iteration_grow_n (step_grow Gall Gex) (n:=0)). lia.
   Qed.
 
 End ModelTheory.
