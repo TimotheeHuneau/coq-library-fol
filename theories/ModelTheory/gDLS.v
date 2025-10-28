@@ -263,7 +263,7 @@ Section ModelTheory.
 
   Definition coe_vec_of_set {A: set M} {n: nat} (v: vec (of_set A) n) := map (@elem A) v.
 
-  Definition coe_env_of_set {A: set M} (rho: env (of_set A)) := rho >> (@elem A).
+  Definition coe_env_of_set {A: set M} (rho: env (of_set A)) := fun i => (@elem A (rho i)).
 
   (* [FE] is needed here, since we are expecting
   that this square is commutative :
@@ -276,7 +276,7 @@ Section ModelTheory.
   env (of_set A)            --coe--> env M
   *)
   Lemma cons_comm_elem {A: set M} (rho: env (of_set A)) (a: of_set A) :
-  (a .: rho) >> @elem A = (elem a .: rho >> @elem A).
+  coe_env_of_set (a .: rho) = (elem a .: coe_env_of_set rho).
   Proof.
     apply fe. intros [|n]. all: reflexivity.
   Qed.
@@ -297,11 +297,11 @@ Section ModelTheory.
 
   Definition model_of_fcl {A: set M} (H: fcl A) : model := Build_model (interp_of_fcl H).
 
-  Definition tvcl {fff: falsity_flag} (A: set M) : Prop :=
-  (forall phi: form, forall rho : env (of_set A), exists a : of_set A,
-  M ⊨[a .: rho] phi -> M ⊨[rho] (∀ phi)) /\
-  (forall phi, forall rho : env (of_set A), exists a : of_set A,
-  M ⊨[rho] (∃ phi) -> M ⊨[a .: rho] phi).
+  Definition btvcl {fff: falsity_flag} {B: Type} (A: set M) : Prop :=
+  (forall phi: form, forall rho : env (of_set A), exists fb : B -> of_set A,
+  (forall b, M ⊨[fb b .: rho] phi) -> M ⊨[rho] (∀ phi)) /\
+  (forall phi, forall rho : env (of_set A), exists fb : B -> of_set A,
+  M ⊨[rho] (∃ phi) -> (exists b, M ⊨[fb b .: rho] phi)).
 
   (* Coercion behaves expectedly, it commutes with evaluation.*)
   Lemma coe_comm_of_fcl {A: set M} {Hf: fcl A}
@@ -329,7 +329,7 @@ Section ModelTheory.
     apply IHt.
   Qed.
 
-  Lemma atom_of_tvcl {A: set M} (Hf: fcl A)
+  Lemma atom_for_btvcl {A: set M} (Hf: fcl A)
   (P: s_P) (T: vec term (ar_preds P)) (rho: env (of_set A)) :
   P ₚ[model_of_fcl Hf] map (eval (of_set A) (interp_of_fcl Hf) rho) T <->
   P ₚ[ M] map (eval M (interp' M) (coe_env_of_set rho)) T.
@@ -342,7 +342,6 @@ Section ModelTheory.
   Definition isBlurredTarskiVaught_all {B: Type} (F: form -> (env M) -> B -> M) : Prop :=
     forall phi rho,
     (forall b, M ⊨[(F phi rho b) .: rho] phi) -> M ⊨[rho] ∀ phi.
-
 
   Definition isBlurredTarskiVaught_ex {B: Type} (F: form -> (env M) -> B -> M) : Prop :=
     forall phi rho,
@@ -364,52 +363,98 @@ Section ModelTheory.
   Record BTV_all (B: Type) : Type :=
     {
       F_all:> FEI B;
-      hwit_all: isBlurredTarskiVaught_all F_all;
+      hwit_all: isBlurredTarskiVaught_all (fFEI F_all);
     }.
 
   Record BTV_ex (B: Type) : Type :=
     {
-      F_ex :> FEI B;
-      hwit_ex : isBlurredTarskiVaught_ex F_ex;
+      F_ex:> FEI B;
+      hwit_ex: isBlurredTarskiVaught_ex F_ex;
     }.
 
-  Definition tvcl' {B: Type} (Fall: BTV_all B) (Fex: BTV_ex B) (A: set M) : Prop :=
+  Definition btvcl' {B: Type} (Fall: BTV_all B) (Fex: BTV_ex B) (A: set M) : Prop :=
   (forall phi, forall rho : env (of_set A), forall b: B,
   A (Fall phi (coe_env_of_set rho) b)) /\
   (forall phi, forall rho : env (of_set A), forall b: B,
   A (Fex phi (coe_env_of_set rho) b)).
 
-  Theorem elemsubm_of_tvcl'
-    {B: Type}
-    {Gall: BTV_all B}
-    {Gex: BTV_ex B}
-    {A: set M}
-    {Hf: fcl A}
-    (Htv: tvcl' Gall Gex A):
+  Theorem btvcl_of_btvcl' {B: Type} (Gall: BTV_all B) (Gex: BTV_ex B) (A: set M)
+  (Hf: fcl A) (Hbtv: btvcl' Gall Gex A): @btvcl _ B A.
+  Proof.
+    destruct Hbtv as [Hall Hex].
+    split. all: intros phi rho.
+    + exists (fun b => (@Build_of_set A (Gall phi rho b)) (Hall phi rho b)).
+      intros h. apply (@hwit_all B Gall).
+      intros b.
+      assert (H: elem (Build_of_set (Hall phi rho b)) = (Gall phi rho b)). eauto.
+      rewrite <-H.
+      assert
+        (H': (fun n => elem ((Build_of_set (Hall phi rho b) .: rho) n)) =
+        ((Gall phi (coe_env_of_set rho) b) .: (fun n => rho n))).
+        apply cons_comm_elem.
+      simpl.
+      rewrite <-H'. apply h.
+    + exists (fun b => (@Build_of_set A (Gex phi rho b)) (Hex phi rho b)).
+      intros h. destruct (@hwit_ex B Gex phi rho h) as [b hb].
+      exists b.
+      assert (H:
+        (fun i => elem ((Build_of_set (Hex phi (rho) b) .: rho) i)) =
+        (Gex phi (fun i => elem (rho i)) b .: (fun i => elem (rho i)))).
+      {
+        apply fe. intros [|i']. all: simpl; reflexivity.
+      }
+      unfold coe_env_of_set in H.
+      rewrite H.
+      apply hb.
+  Qed.
+
+Theorem elemsubmh_of_btvcl {fff: falsity_flag} {B: Type} {A: set M} {Hf: fcl A} (Hbtv: @btvcl _ B A):
   model_of_fcl Hf ⪳[@elem A] M.
   Proof.
     intros phi. induction phi.
     all: intros rho; split; intros HA.
     + firstorder.
     + firstorder.
-    + eapply atom_of_tvcl, HA.
-    + eapply atom_of_tvcl, HA.
+    + eapply atom_for_btvcl, HA.
+    + eapply atom_for_btvcl, HA.
     + destruct b0; firstorder. 
     + destruct b0; firstorder.
     + destruct q.
-  Admitted.
+      - destruct Hbtv as [Hall Hex].
+        destruct (Hall phi rho) as [bwall hbwall].
+        apply hbwall. 
+        intros b0. apply (IHphi (conj Hall Hex)). apply HA.
+      - destruct HA as [a ha].
+        exists a. unfold funcomp in *.
+        assert (hcoe: (elem a .: coe_env_of_set rho) = coe_env_of_set (a .: rho)).
+        {
+          apply fe; intros [|i']; reflexivity.
+        } unfold coe_env_of_set in hcoe. rewrite hcoe.
+        rewrite <-(IHphi Hbtv). apply ha. 
+    + destruct q.
+      - intros a. simpl in *. rewrite (IHphi Hbtv).
+        assert (hcoe: (elem a .: coe_env_of_set rho) = coe_env_of_set (a .: rho)).
+        {
+          apply fe; intros [|i']; reflexivity.
+        } unfold coe_env_of_set in hcoe. unfold funcomp in *. rewrite <-hcoe.
+        apply (HA a).
+      - destruct Hbtv as [Hall Hex].
+        destruct (Hex phi rho) as [bwex hbwex].
+        destruct (hbwex HA) as [b0 hb0].
+        exists (bwex b0). apply (IHphi (conj Hall Hex)). apply hb0.
+  Qed.
 
-  Theorem elemsubm_of_tvcl
+  Theorem elemsubm_of_btvcl
     {B: Type}
     {Gall: BTV_all B}
     {Gex: BTV_ex B}
     {A: set M}
     {Hf: fcl A}
-    (Htv: tvcl' Gall Gex A):
+    (Hbtv: @btvcl _ B A):
   model_of_fcl Hf ⪳ M.
   Proof.
     exists (@elem A).
-    apply (elemsubm_of_tvcl' Htv).
+    apply (elemsubmh_of_btvcl Hbtv).
   Qed.
 
   Definition stepForm {B: Type} (Gall: BTV_all B) (Gex: BTV_ex B) (A : set M) := (fun m =>
@@ -501,7 +546,12 @@ Section ModelTheory.
     intros m. rewrite coe_comm_vec2env'. induction v.
     + apply only_nil_of_vec_0.
     + simpl. f_equal. unfold coe_env_of_set.
-      rewrite cons_comm_elem, eval_up_down. apply IHv.
+      assert (hcoe: forall rho, (elem h .: coe_env_of_set rho) = coe_env_of_set (h .: rho)).
+      {
+        intros rho; apply fe; intros [|i']; reflexivity.
+      }
+      unfold coe_env_of_set in hcoe. rewrite <-hcoe.
+      rewrite eval_up_down. apply IHv.
   Qed.
 
   Lemma fcl_of_nefp_step {B: Type} {Gall: BTV_all B} {Gex: BTV_ex B} {A: set M} (H: nefp_step Gall Gex A):
@@ -521,8 +571,8 @@ Section ModelTheory.
     reflexivity.
   Qed.
 
-  Theorem tvcl'_of_nefp_step {B: Type} {Gall: BTV_all B} {Gex: BTV_ex B} {A: set M} (H: nefp_step Gall Gex A):
-  tvcl' Gall Gex A.
+  Theorem btvcl'_of_nefp_step {B: Type} {Gall: BTV_all B} {Gex: BTV_ex B} {A: set M} (H: nefp_step Gall Gex A):
+  btvcl' Gall Gex A.
   Proof.
     destruct H as [[a0] [_ hfp']]. split.
     all: intros phi rho b.
@@ -539,8 +589,8 @@ Section ModelTheory.
   (H: nefp_step Gall Gex A):
   (fcl_of_nefp_step >> model_of_fcl) H ⪳ M.
   Proof.
-    apply (@elemsubm_of_tvcl B Gall Gex).
-    apply (tvcl'_of_nefp_step H).
+    apply (@elemsubm_of_btvcl B Gall Gex).
+    apply (btvcl_of_btvcl' (fcl_of_nefp_step H) (btvcl'_of_nefp_step H)).
   Qed.
 
   Fact step_grow:
